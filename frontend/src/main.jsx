@@ -1,7 +1,7 @@
 import React, {useState} from "react"
 import { createRoot } from "react-dom/client"
 
-const API = 'http://127.0.0.1:8080'
+const API = import.meta.env.VITE_API_BASE
 
 async function searchFlights(payload){
   const r = await fetch(`${API}/api/search`, {
