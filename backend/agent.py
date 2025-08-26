@@ -98,3 +98,38 @@ def search_entry(origins: List[str], destinations: List[str], depart_date: str,
     if DRY_RUN or not (AMADEUS_KEY and AMADEUS_SECRET):
         return mock_search(origins, destinations, depart_date)
     return live_search(origins, destinations, depart_date, return_date, adults, limit_per_route)
+from typing import List, Optional, Dict
+from agent_uk_india import UK_AIRPORTS, INDIA_AIRPORTS, expand_dates, pareto_price_duration
+
+def uk_india_grid_search(
+    depart_date: str,
+    return_date: Optional[str],
+    days_flex: int,
+    adults: int,
+    limit_per_route: int,
+    live: bool
+) -> List[Dict]:
+    results: List[Dict] = []
+    dep_dates = expand_dates(depart_date, days_flex)
+    ret_dates = expand_dates(return_date, days_flex) if return_date else [None]
+
+    for o in UK_AIRPORTS:
+        for d in INDIA_AIRPORTS:
+            for dep in dep_dates:
+                for ret in ret_dates:
+                    if live:
+                        results.extend(live_search([o], [d], dep, ret, adults, limit_per_route))
+                    else:
+                        results.extend(mock_search([o], [d], dep))
+    # dedupe rough duplicates (same route+date+price)
+    seen = set()
+    uniq = []
+    for r in results:
+        key = (r.get("origin"), r.get("destination"), r.get("out_date"), int(r.get("price",0)))
+        if key not in seen:
+            uniq.append(r); seen.add(key)
+    # Pareto filter + sort by cheapest then shortest
+    pareto = pareto_price_duration(uniq)
+    pareto.sort(key=lambda r: (r.get("price",1e9), r.get("duration_minutes",1e9)))
+    return pareto
+
